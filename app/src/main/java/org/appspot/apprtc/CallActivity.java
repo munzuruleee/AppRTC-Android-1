@@ -31,6 +31,9 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
 import android.widget.Toast;
+
+import com.github.piasy.videocre.UvcCameraCapturer;
+
 import java.io.IOException;
 import java.lang.RuntimeException;
 import java.util.ArrayList;
@@ -443,6 +446,10 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
   }
 
   private VideoCapturer createCameraCapturer(CameraEnumerator enumerator) {
+    if (true) {
+      return new UvcCameraCapturer();
+    }
+
     final String[] deviceNames = enumerator.getDeviceNames();
 
     // First, try to find front facing camera
