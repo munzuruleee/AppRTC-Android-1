@@ -122,7 +122,7 @@ class HardwareVideoDecoder
   }
 
   // Metadata for the last frame rendered to the texture.
-  private Object renderedTextureMetadataLock = new Object();
+  private final Object renderedTextureMetadataLock = new Object();
   private DecodedTextureMetadata renderedTextureMetadata;
 
   // Decoding proceeds asynchronously.  This callback returns decoded frames to the caller.  Valid
@@ -163,7 +163,7 @@ class HardwareVideoDecoder
     Logging.d(TAG, "initDecodeInternal");
     if (outputThread != null) {
       Logging.e(TAG, "initDecodeInternal called while the codec is already running");
-      return VideoCodecStatus.ERROR;
+      return VideoCodecStatus.FALLBACK_SOFTWARE;
     }
 
     // Note:  it is not necessary to initialize dimensions under the lock, since the output thread
@@ -180,7 +180,7 @@ class HardwareVideoDecoder
       codec = MediaCodec.createByCodecName(codecName);
     } catch (IOException | IllegalArgumentException e) {
       Logging.e(TAG, "Cannot create media decoder " + codecName);
-      return VideoCodecStatus.ERROR;
+      return VideoCodecStatus.FALLBACK_SOFTWARE;
     }
     try {
       MediaFormat format = MediaFormat.createVideoFormat(codecType.mimeType(), width, height);
@@ -192,7 +192,7 @@ class HardwareVideoDecoder
     } catch (IllegalStateException e) {
       Logging.e(TAG, "initDecode failed", e);
       release();
-      return VideoCodecStatus.ERROR;
+      return VideoCodecStatus.FALLBACK_SOFTWARE;
     }
     running = true;
     outputThread = createOutputThread();
@@ -241,11 +241,11 @@ class HardwareVideoDecoder
       // Need to process a key frame first.
       if (frame.frameType != EncodedImage.FrameType.VideoFrameKey) {
         Logging.e(TAG, "decode() - key frame required first");
-        return VideoCodecStatus.ERROR;
+        return VideoCodecStatus.NO_OUTPUT;
       }
       if (!frame.completeFrame) {
         Logging.e(TAG, "decode() - complete frame required first");
-        return VideoCodecStatus.ERROR;
+        return VideoCodecStatus.NO_OUTPUT;
       }
     }
 
@@ -299,7 +299,7 @@ class HardwareVideoDecoder
 
   @Override
   public String getImplementationName() {
-    return "HardwareVideoDecoder: " + codecName;
+    return "HWDecoder";
   }
 
   @Override

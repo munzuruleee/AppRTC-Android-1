@@ -45,7 +45,7 @@ class HardwareVideoEncoder implements VideoEncoder {
 
   private static final int MAX_VIDEO_FRAMERATE = 30;
 
-  // See MAX_ENCODER_Q_SIZE in androidmediaencoder_jni.cc.
+  // See MAX_ENCODER_Q_SIZE in androidmediaencoder.cc.
   private static final int MAX_ENCODER_Q_SIZE = 2;
 
   private static final int MEDIA_CODEC_RELEASE_TIMEOUT_MS = 5000;
@@ -141,6 +141,9 @@ class HardwareVideoEncoder implements VideoEncoder {
     this.forcedKeyFrameNs = TimeUnit.MILLISECONDS.toNanos(forceKeyFrameIntervalMs);
     this.bitrateAdjuster = bitrateAdjuster;
     this.sharedContext = sharedContext;
+
+    // Allow construction on a different thread.
+    encodeThreadChecker.detachThread();
   }
 
   @Override
@@ -173,7 +176,7 @@ class HardwareVideoEncoder implements VideoEncoder {
       codec = MediaCodec.createByCodecName(codecName);
     } catch (IOException | IllegalArgumentException e) {
       Logging.e(TAG, "Cannot create media encoder " + codecName);
-      return VideoCodecStatus.ERROR;
+      return VideoCodecStatus.FALLBACK_SOFTWARE;
     }
 
     final int colorFormat = useSurfaceMode ? surfaceColorFormat : yuvColorFormat;
@@ -215,7 +218,7 @@ class HardwareVideoEncoder implements VideoEncoder {
     } catch (IllegalStateException e) {
       Logging.e(TAG, "initEncodeInternal failed", e);
       release();
-      return VideoCodecStatus.ERROR;
+      return VideoCodecStatus.FALLBACK_SOFTWARE;
     }
 
     running = true;
@@ -262,6 +265,9 @@ class HardwareVideoEncoder implements VideoEncoder {
 
     codec = null;
     outputThread = null;
+
+    // Allow changing thread after release.
+    encodeThreadChecker.detachThread();
 
     return returnValue;
   }
@@ -409,13 +415,23 @@ class HardwareVideoEncoder implements VideoEncoder {
   @Override
   public ScalingSettings getScalingSettings() {
     encodeThreadChecker.checkIsOnValidThread();
-    return new ScalingSettings(automaticResizeOn);
+    if (automaticResizeOn) {
+      if (codecType == VideoCodecType.VP8) {
+        final int kLowVp8QpThreshold = 29;
+        final int kHighVp8QpThreshold = 95;
+        return new ScalingSettings(kLowVp8QpThreshold, kHighVp8QpThreshold);
+      } else if (codecType == VideoCodecType.H264) {
+        final int kLowH264QpThreshold = 24;
+        final int kHighH264QpThreshold = 37;
+        return new ScalingSettings(kLowH264QpThreshold, kHighH264QpThreshold);
+      }
+    }
+    return ScalingSettings.OFF;
   }
 
   @Override
   public String getImplementationName() {
-    encodeThreadChecker.checkIsOnValidThread();
-    return "HardwareVideoEncoder: " + codecName;
+    return "HWEncoder";
   }
 
   private VideoCodecStatus resetCodec(int newWidth, int newHeight, boolean newUseSurfaceMode) {
@@ -501,11 +517,11 @@ class HardwareVideoEncoder implements VideoEncoder {
           frameBuffer = ByteBuffer.allocateDirect(info.size + configBuffer.capacity());
           configBuffer.rewind();
           frameBuffer.put(configBuffer);
+          frameBuffer.put(codecOutputBuffer);
+          frameBuffer.rewind();
         } else {
-          frameBuffer = ByteBuffer.allocateDirect(info.size);
+          frameBuffer = codecOutputBuffer.slice();
         }
-        frameBuffer.put(codecOutputBuffer);
-        frameBuffer.rewind();
 
         final EncodedImage.FrameType frameType = isKeyFrame
             ? EncodedImage.FrameType.VideoFrameKey
@@ -562,36 +578,27 @@ class HardwareVideoEncoder implements VideoEncoder {
   /**
    * Enumeration of supported YUV color formats used for MediaCodec's input.
    */
-  private static enum YuvFormat {
+  private enum YuvFormat {
     I420 {
       @Override
-      void fillBuffer(ByteBuffer inputBuffer, VideoFrame.Buffer buffer) {
-        VideoFrame.I420Buffer i420 = buffer.toI420();
-        inputBuffer.put(i420.getDataY());
-        inputBuffer.put(i420.getDataU());
-        inputBuffer.put(i420.getDataV());
+      void fillBuffer(ByteBuffer dstBuffer, VideoFrame.Buffer srcBuffer) {
+        VideoFrame.I420Buffer i420 = srcBuffer.toI420();
+        YuvHelper.I420Copy(i420.getDataY(), i420.getStrideY(), i420.getDataU(), i420.getStrideU(),
+            i420.getDataV(), i420.getStrideV(), dstBuffer, i420.getWidth(), i420.getHeight());
         i420.release();
       }
     },
     NV12 {
       @Override
-      void fillBuffer(ByteBuffer inputBuffer, VideoFrame.Buffer buffer) {
-        VideoFrame.I420Buffer i420 = buffer.toI420();
-        inputBuffer.put(i420.getDataY());
-
-        // Interleave the bytes from the U and V portions, starting with U.
-        ByteBuffer u = i420.getDataU();
-        ByteBuffer v = i420.getDataV();
-        int i = 0;
-        while (u.hasRemaining() && v.hasRemaining()) {
-          inputBuffer.put(u.get());
-          inputBuffer.put(v.get());
-        }
+      void fillBuffer(ByteBuffer dstBuffer, VideoFrame.Buffer srcBuffer) {
+        VideoFrame.I420Buffer i420 = srcBuffer.toI420();
+        YuvHelper.I420ToNV12(i420.getDataY(), i420.getStrideY(), i420.getDataU(), i420.getStrideU(),
+            i420.getDataV(), i420.getStrideV(), dstBuffer, i420.getWidth(), i420.getHeight());
         i420.release();
       }
     };
 
-    abstract void fillBuffer(ByteBuffer inputBuffer, VideoFrame.Buffer buffer);
+    abstract void fillBuffer(ByteBuffer dstBuffer, VideoFrame.Buffer srcBuffer);
 
     static YuvFormat valueOf(int colorFormat) {
       switch (colorFormat) {

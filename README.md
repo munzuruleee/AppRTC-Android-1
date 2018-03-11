@@ -1,8 +1,8 @@
 
 ## Source code directories
 
-+ https://chromium.googlesource.com/external/webrtc/+/master/webrtc/sdk/android/api/org/webrtc
-+ https://chromium.googlesource.com/external/webrtc/+/master/webrtc/sdk/android/src/java/org/webrtc
-+ https://chromium.googlesource.com/external/webrtc/+/master/webrtc/rtc_base/java/src/org/webrtc
-+ https://chromium.googlesource.com/external/webrtc/+/master/webrtc/modules/audio_device/android/java/src/org/webrtc/voiceengine
-+ https://chromium.googlesource.com/external/webrtc/+/master/webrtc/examples/androidapp/
++ https://webrtc.googlesource.com/src/+/master/webrtc/sdk/android/api/org/webrtc
++ https://webrtc.googlesource.com/src/+/master/webrtc/sdk/android/src/java/org/webrtc
++ https://webrtc.googlesource.com/src/+/master/webrtc/rtc_base/java/src/org/webrtc
++ https://webrtc.googlesource.com/src/+/master/webrtc/modules/audio_device/android/java/src/org/webrtc/voiceengine
++ https://webrtc.googlesource.com/src/+/master/webrtc/examples/androidapp/
