@@ -1,4 +1,4 @@
-apply plugin: 'com.android.application'
+apply plugin: 'com.android.library'
 
 android {
     compileSdkVersion rootProject.ext.androidCompileSdkVersion
@@ -9,9 +9,6 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.releaseVersionCode
         versionName rootProject.ext.releaseVersionName
-        applicationId "org.appspot.apprtc"
-        multiDexEnabled true
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
@@ -23,14 +20,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    packagingOptions {
-        exclude 'META-INF/MANIFEST.MF'
-    }
 }
 
 dependencies {
-    implementation "com.android.support:appcompat-v7:${rootProject.ext.androidSupportSdkVersion}"
-
-    implementation (name:'autobanh', ext:'jar')
-    implementation project(':libwebrtc')
+    api files('libs/webrtc.jar')
 }

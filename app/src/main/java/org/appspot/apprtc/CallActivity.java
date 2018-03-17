@@ -32,7 +32,7 @@ import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
 import android.widget.Toast;
 
-import com.github.piasy.videocre.UvcCameraCapturer;
+import com.serenegiant.UvcCameraCapturer;
 
 import java.io.IOException;
 import java.lang.RuntimeException;
